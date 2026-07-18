@@ -1,0 +1,3 @@
+This is an overview of the road map to create the Aliens motion tracker device.
+
+The device will eventually use a multicolor display, such as a TFT SPI ili9341 display. The device will use a small microcontroller such as an arduino nano, arduino uno, esp32, or raspberry pi zero. The device with have limited functionality, possibly using an ultrasonic sensor to capture the display of an object from the user. The project will for the moment use Arduino IDE to code, however, this may change, particularly if a raspberry pi is eventually used.
