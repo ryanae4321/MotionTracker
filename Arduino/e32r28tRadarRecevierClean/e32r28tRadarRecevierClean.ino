@@ -12,25 +12,20 @@
 
 #include "User_Setup.h"
 // #include "screen.h" // this screen includes the text at the bottom of the display
-#include "radar_clean.h" // this is the clean version of the screen
-
-// #include <Fonts/GFXFF/FreeSans12pt7b.h>
+// #include "radar_clean.h" // this is the clean version of the screen
+#include "radar_clean_full.h" // this is the clean version but better sized to the screen
 
 #define SENSOR_TIMEOUT 2000
 #define NUM_SIM_TARGETS 5
 #define MAX_DISTANCE 427
 #define TFT_BL 21   // Backlight control pin (E32R28T)
-#define SD_CS 5
+// #define SD_CS 5 // SD card currently unused
 
-int x = 300;
-int y = 10;
-int r1 = 7;
-int r2 = 5;
+// Define origin
 int centerX = 160;
-int centerY = 175;
+int centerY = 155;
 
-float duration, myData;
-float realDistance = -1; // Set default for startup
+float realDistance = -1;
 float simDistance[NUM_SIM_TARGETS];
 float simAngle[NUM_SIM_TARGETS];
 float simSpeed[NUM_SIM_TARGETS];
@@ -45,12 +40,12 @@ void displayDistance(float distance, float angle) {
   int y = centerY - radius * cos(angle);
   if (y < 0) y = 0;
 
-  tft.fillCircle(x, y, 5, TFT_WHITE);
+  tft.fillCircle(x, y, 7, TFT_WHITE);
 }
 
 void displayDistanceText(float distance) {
-  int xStart = 125;
-  int yStart = 187;
+  int xStart = 128;
+  int yStart = 165;
 
   tft.setTextColor(TFT_RED);
   tft.setTextDatum(TL_DATUM);
@@ -58,19 +53,19 @@ void displayDistanceText(float distance) {
   tft.setFreeFont(&FreeSans12pt7b);
   tft.setTextSize(1);
   int length = tft.drawNumber((int)distance, xStart, yStart);
-  xStart += 38;
+  xStart += 36;
   tft.setTextFont(1);
   tft.setTextSize(1);
   length = tft.drawString(" - ", xStart, yStart+8);
-  length = length + (tft.drawNumber((int)(distance* 10) % 10, xStart+length, yStart+6, 1) / 2);
+  length = length + (tft.drawNumber((int)(distance* 10) % 10, xStart+length-1, yStart+3, 1) / 2);
   tft.setTextDatum(MC_DATUM);
-  tft.drawString("cm", xStart+length, yStart+18); 
+  tft.drawString("cm", xStart+length, yStart+15); 
 }
 
 void displayDataText(int contacts, float averageDistance) {
   char data[32];
   int x = 220;
-  int y = 195;
+  int y = 173;
   tft.setTextColor(TFT_WHITE);
   tft.setTextDatum(TL_DATUM);
   tft.setTextFont(1);
@@ -105,15 +100,14 @@ void OnDataRecv(const esp_now_recv_info* info, const unsigned char* incomingData
 
 void headerImage() {
   tft.setSwapBytes(true);
-  // tft.pushImage(0, 0, screen_width, screen_height, screen);
-  tft.pushImage(0, 0, radar_clean_width, radar_clean_height, radar_clean);
+  tft.pushImage(0, 0, radar_clean_full_width, radar_clean_full_height, radar_clean_full);
 }
 
 void radarSweep() {
   int r = 15;
-  while (r < 238) {
+  while (r < 270) {
     headerImage();
-    tft.drawArc(160, 175, r + 5, r, 90, 270, TFT_WHITE, TFT_BLACK, true);
+    tft.drawArc(160, 164, r + 5, r, 90, 270, TFT_WHITE, TFT_BLACK, true);
     if (sensorAvailable()) {
       // REAL SENSOR
       displayDistance(realDistance, 0);
@@ -143,6 +137,7 @@ void setup() {
     simAngle[i] = random(-90, 90) * DEG_TO_RAD;
     simSpeed[i] = random(1, 5);
   }
+
   // Backlight setup
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, HIGH); // Turn backlight ON
