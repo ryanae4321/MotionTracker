@@ -41,7 +41,11 @@ void playTone(float frequency, unsigned long durationMs, int amplitude, bool fad
 }
 
 void playRadarTick() {
-  playTone(660.0f, 220, 100, true);
+  float proximity = 1.0f - (simDistance / MAX_DISTANCE);
+  if (proximity < 0.0f) proximity = 0.0f;
+  if (proximity > 1.0f) proximity = 1.0f;
+  float frequency = 660.0f + (proximity * 120.0f);
+  playTone(frequency, 220, 100, true);
 }
 
 // ----------------------------------------------
@@ -193,5 +197,5 @@ void setup() {
 
 void loop() {
   radarSweep();
-  delay(100);
+  delay(50);
 }
