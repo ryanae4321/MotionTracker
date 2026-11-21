@@ -2,6 +2,8 @@
 // Display Driver ILI9341
 
 #include <TFT_eSPI.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include "User_Setup.h"
 #include "Weyland_Yutani_Logo.h"
 #include "radar_clean_full.h"
@@ -18,6 +20,13 @@ float simDistance;
 float simAngle;
 float simSpeed;
 unsigned long startTime;
+bool simStarted = false;
+QueueHandle_t audioQueue;
+
+enum AudioCue : uint8_t {
+  AUDIO_CUE_BLIP,
+  AUDIO_CUE_TARGET
+};
 
 // ----------------------------------------------
 // Audio Functions
@@ -46,6 +55,42 @@ void playRadarTick() {
   if (proximity > 1.0f) proximity = 1.0f;
   float frequency = 660.0f + (proximity * 120.0f);
   playTone(frequency, 220, 100, true);
+}
+
+void playRadarCombined() {
+  playTone(300.0f, 150, 20, false);
+  playTone(1438.0f, 500, 20, true);
+}
+
+void playRadarBeep() {
+  playTone(1438.0f, 1300, 20, true);
+}
+
+void playRadarBlip() {
+  playTone(300.0f, 150, 20, false);
+}
+
+void audioPlaybackTask(void *parameter) {
+  AudioCue cue;
+  for (;;) {
+    if (xQueueReceive(audioQueue, &cue, portMAX_DELAY) == pdPASS) {
+      if (cue == AUDIO_CUE_TARGET) {
+        playRadarCombined();
+      } else {
+        playRadarBlip();
+      }
+      vTaskDelay(1);
+    }
+  }
+}
+
+void queueRadarAudio(AudioCue cue) {
+  if (audioQueue == NULL) {
+    return;
+  }
+  if (xQueueOverwrite(audioQueue, &cue) != pdPASS) {
+    Serial.println("Failed to queue radar audio");
+  }
 }
 
 // ----------------------------------------------
@@ -128,27 +173,30 @@ void displayDataText(int contacts, float averageDistance) {
 }
 
 void radarSweep() {
+  const unsigned long duration = 15000;
   int r = 15;
-  playRadarTick();
+  bool targetPresent = simStarted || (millis() - startTime > duration);
+  simStarted = targetPresent;
+  queueRadarAudio(targetPresent ? AUDIO_CUE_TARGET : AUDIO_CUE_BLIP);
+
   while (r < 270) {
     headerImage();
     tft.drawArc(160, 164, r + 5, r, 90, 270, TFT_WHITE, TFT_BLACK, true);
 
     // SIMULATION
-    const unsigned long duration = 15000;
     float smallest = MAX_DISTANCE;
     float average = 0.0;
 
-    if (millis() - startTime > duration) {
-
+    if (targetPresent) {
       // Move target toward the center
-      simDistance -= simSpeed * 0.05;
+      simDistance -= simSpeed * 0.01;
 
       // Reset target when it reaches the center
       if (simDistance <= 0.0) {
         simDistance = random(150, 251) / 10.0;
         simAngle = random(-90, 90) * DEG_TO_RAD;
         simSpeed = random(1, 5);
+
       }
 
       displayDistance(simDistance, simAngle);
@@ -171,6 +219,15 @@ void radarSweep() {
 
 void setup() {
   Serial.begin(115200);
+
+  audioQueue = xQueueCreate(1, sizeof(AudioCue));
+  if (audioQueue == NULL) {
+    Serial.println("Failed to create radar audio queue");
+  } else if (xTaskCreatePinnedToCore(audioPlaybackTask, "radarAudio", 4096, NULL, 1, NULL, 0) != pdPASS) {
+    Serial.println("Failed to start radar audio task");
+    vQueueDelete(audioQueue);
+    audioQueue = NULL;
+  }
 
   // Audio setup
   pinMode(AUDIO_ENABLE, OUTPUT);
